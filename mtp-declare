@@ -1,7 +1,6 @@
 #!/bin/bash
 # --------------------------------------------------------------------------
-#  Setup your system to declare a connected MTP device 
-#  as an automount device
+#  Setup your Linux computer to automount any connected MTP device
 #  
 #  Depends on following packages :
 #    * go-mtpfs (from WebUpd8 PPA)
