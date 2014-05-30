@@ -11,6 +11,7 @@
 #    17/03/2013, V1.1 - Add multi-devices support (thanks to Manu Sankala)
 #    22/03/2013, V2.0 - Complete rewrite using mtp-detect
 #    22/03/2013, V2.1 - Add fuse.conf test (thanks to Stefan Schanz)
+#    31/05/2014, V2.2 - Add support for xhci & ohci usb ports (thanks to Viktor Aksionov)
 # --------------------------------------------------------------------------
 
 # set string separator as \n
@@ -80,6 +81,13 @@ then
   # get ID_MODEL and ID_MODEL_ID
   MTP_MODEL=`udevadm info --export --query=property --path="$MTP_PATH" | grep "ID_MODEL=" | sed 's/^.*=.\(.*\).$/\1/g'`
   MTP_MODEL_ID=`udevadm info --export --query=property --path="$MTP_PATH" | grep "ID_MODEL_ID=" | sed 's/^.*=.\(.*\).$/\1/g'`
+  
+  # determine USB port type (ehci, ohci or xhci)
+  if [ -e "/sys/bus/pci/drivers/ehci_hcd/$MTP_USBID" ] ; then MTP_USBTYPE="ehci_hcd"
+  elif [ -e "/sys/bus/pci/drivers/ohci_hcd/$MTP_USBID" ] ; then MTP_USBTYPE="ohci_hcd"
+  elif [ -e "/sys/bus/pci/drivers/xhci_hcd/$MTP_USBID" ] ; then MTP_USBTYPE="xhci_hcd"
+  else MTP_ERROR="USB port is of unknown type. Try to use another USB port."
+  fi
 fi
   
 # prepare mount point
@@ -123,8 +131,8 @@ then
   echo "80" ; echo "# Step 6 - Device detection ... if more than 10s, reconnect the device" ; sleep 1
 
   # USB - first reset of host to force device reconnexion
-  echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ehci_hcd/unbind
-  echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ehci_hcd/bind
+  echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/${MTP_USBTYPE}/unbind
+  echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/${MTP_USBTYPE}/bind
 
   # GO-MTPFS - loop till the device has been detected again
   MTP_LINE=""
@@ -164,8 +172,8 @@ then
 
     # reset USB host to force device reconnection and mount it as device  
     echo "90" ; echo "# Step 9 - Second reset of USB host" ; sleep 1
-    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ehci_hcd/unbind
-    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ehci_hcd/bind
+    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/${MTP_USBTYPE}/unbind
+    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/${MTP_USBTYPE}/bind
 
     # FINISHED - declare mount point in /etc/fstab
     echo "100" ; echo "# Finished ! Your $MTP_MODEL should be seen as a device" ; sleep 1
