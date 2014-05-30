@@ -9,7 +9,7 @@ This project allows to configure a Ubuntu computer to directly access an Android
  
 Android device will be properly declared to automatically mount when plugged & unmount when unplugged. 
 You'll be able to handle multiple devices at the same time on your ubuntu computer.
-
+ 
 --- Description & Installation ---
 
 Complete description and full installation procedure are available at
