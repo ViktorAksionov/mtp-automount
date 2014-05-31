@@ -18,6 +18,7 @@
 # set string separator as \n
 IFS="
 "
+
 # set default path
 PATH_FSTAB="/etc/fstab"
 PATH_GO="/usr/bin/go-mtpfs"
