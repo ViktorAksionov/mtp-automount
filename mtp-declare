@@ -3,9 +3,10 @@
 #  Setup your Linux computer to automount any connected MTP device
 #  
 #  Depends on following packages :
-#    * go-mtpfs (from WebUpd8 PPA)
+#    * go-mtpfs
 #    * mtp-tools
 #    * zenity
+#
 #  Revision history :
 #    07/03/2013, V1.0 - Creation by N. Bernaerts
 #    17/03/2013, V1.1 - Add multi-devices support (thanks to Manu Sankala)
@@ -17,9 +18,9 @@
 # set string separator as \n
 IFS="
 "
-
 # set default path
 PATH_FSTAB="/etc/fstab"
+PATH_GO="/usr/bin/go-mtpfs"
 
 # function with zenity progression display
 (
@@ -33,7 +34,7 @@ MTP_USER="$SUDO_USER"
 echo "0" ; echo "# Step 1 - Checking environment" ; sleep 1
 
 # check if go-mtpfs is installed
-if [ ! -f "/usr/bin/go-mtpfs" ]; then MTP_ERROR="go-mtpfs is not installed. Install it first."; fi
+if [ ! -f "$PATH_GO" ]; then MTP_ERROR="go-mtpfs is not installed. Install it first."; fi
 
 # check if script is run as sudo
 if [ "$MTP_USER" = "" ]; then MTP_ERROR="script must be run as sudo."; fi
@@ -116,7 +117,7 @@ then
   MTP_RULE="/etc/udev/rules.d/99-mtp-$MTP_MODEL-$MTP_VENDOR_ID-$MTP_DEVICE_ID.rules"
   echo "# $MTP_MODEL - MTP mount & unmount rules " > $MTP_RULE
   echo "SUBSYSTEM==\"usb\", ATTR{idVendor}==\"$MTP_VENDOR_ID\", ATTR{idProduct}==\"$MTP_DEVICE_ID\", MODE=\"0666\", OWNER=\"$MTP_USER\"" >> $MTP_RULE
-  echo "ENV{ID_MODEL}==\"$MTP_MODEL\", ENV{ID_MODEL_ID}==\"$MTP_MODEL_ID\", ACTION==\"add\", RUN+=\"/usr/bin/sudo -b -u $MTP_USER /usr/bin/go-mtpfs -dev=$MTP_VENDOR_ID:$MTP_DEVICE_ID -allow-other=true /media/$MTP_MODEL\"" >> $MTP_RULE
+  echo "ENV{ID_MODEL}==\"$MTP_MODEL\", ENV{ID_MODEL_ID}==\"$MTP_MODEL_ID\", ACTION==\"add\", RUN+=\"/usr/bin/sudo -b -u $MTP_USER $PATH_GO -dev=$MTP_VENDOR_ID:$MTP_DEVICE_ID -allow-other=true /media/$MTP_MODEL\"" >> $MTP_RULE
   echo "ENV{ID_MODEL}==\"$MTP_MODEL\", ENV{ID_MODEL_ID}==\"$MTP_MODEL_ID\", ACTION==\"remove\", RUN+=\"/bin/umount /media/$MTP_MODEL\"" >> $MTP_RULE
   echo " " >> $MTP_RULE
 
