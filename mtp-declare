@@ -14,7 +14,7 @@
 #    22/03/2013, V2.1 - Add fuse.conf test (thanks to Stefan Schanz)
 #    31/05/2014, V2.2 - Add support for xhci & ohci usb ports (thanks to Viktor Aksionov)
 # --------------------------------------------------------------------------
-
+ 
 # set string separator as \n
 IFS="
 "
