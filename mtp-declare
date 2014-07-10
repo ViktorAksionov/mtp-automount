@@ -3,22 +3,25 @@
 #  Setup your Linux computer to automount any connected MTP device
 #  
 #  Depends on following packages :
-#    * go-mtpfs (from WebUpd8 PPA)
+#    * go-mtpfs
 #    * mtp-tools
 #    * zenity
+#
 #  Revision history :
 #    07/03/2013, V1.0 - Creation by N. Bernaerts
 #    17/03/2013, V1.1 - Add multi-devices support (thanks to Manu Sankala)
 #    22/03/2013, V2.0 - Complete rewrite using mtp-detect
 #    22/03/2013, V2.1 - Add fuse.conf test (thanks to Stefan Schanz)
+#    31/05/2014, V2.2 - Add support for xhci & ohci usb ports (thanks to Viktor Aksionov)
 # --------------------------------------------------------------------------
-
+ 
 # set string separator as \n
 IFS="
 "
 
 # set default path
 PATH_FSTAB="/etc/fstab"
+PATH_GO="/usr/bin/go-mtpfs"
 
 # function with zenity progression display
 (
@@ -32,7 +35,7 @@ MTP_USER="$SUDO_USER"
 echo "0" ; echo "# Step 1 - Checking environment" ; sleep 1
 
 # check if go-mtpfs is installed
-if [ ! -f "/usr/bin/go-mtpfs" ]; then MTP_ERROR="go-mtpfs is not installed. Install it first."; fi
+if [ ! -f "$PATH_GO" ]; then MTP_ERROR="go-mtpfs is not installed. Install it first."; fi
 
 # check if script is run as sudo
 if [ "$MTP_USER" = "" ]; then MTP_ERROR="script must be run as sudo."; fi
@@ -80,6 +83,13 @@ then
   # get ID_MODEL and ID_MODEL_ID
   MTP_MODEL=`udevadm info --export --query=property --path="$MTP_PATH" | grep "ID_MODEL=" | sed 's/^.*=.\(.*\).$/\1/g'`
   MTP_MODEL_ID=`udevadm info --export --query=property --path="$MTP_PATH" | grep "ID_MODEL_ID=" | sed 's/^.*=.\(.*\).$/\1/g'`
+  
+  # determine USB port type (ehci, ohci or xhci)
+  if [ -e "/sys/bus/pci/drivers/ehci_hcd/$MTP_USBID" ] ; then MTP_USBTYPE="ehci_hcd"
+  elif [ -e "/sys/bus/pci/drivers/ohci_hcd/$MTP_USBID" ] ; then MTP_USBTYPE="ohci_hcd"
+  elif [ -e "/sys/bus/pci/drivers/xhci_hcd/$MTP_USBID" ] ; then MTP_USBTYPE="xhci_hcd"
+  else MTP_ERROR="USB port is of unknown type. Try to use another USB port."
+  fi
 fi
   
 # prepare mount point
@@ -108,40 +118,23 @@ then
   MTP_RULE="/etc/udev/rules.d/99-mtp-$MTP_MODEL-$MTP_VENDOR_ID-$MTP_DEVICE_ID.rules"
   echo "# $MTP_MODEL - MTP mount & unmount rules " > $MTP_RULE
   echo "SUBSYSTEM==\"usb\", ATTR{idVendor}==\"$MTP_VENDOR_ID\", ATTR{idProduct}==\"$MTP_DEVICE_ID\", MODE=\"0666\", OWNER=\"$MTP_USER\"" >> $MTP_RULE
-  echo "ENV{ID_MODEL}==\"$MTP_MODEL\", ENV{ID_MODEL_ID}==\"$MTP_MODEL_ID\", ACTION==\"add\", RUN+=\"/usr/bin/sudo -b -u $MTP_USER /usr/bin/go-mtpfs -dev=$MTP_VENDOR_ID:$MTP_DEVICE_ID -allow-other=true /media/$MTP_MODEL\"" >> $MTP_RULE
+  echo "ENV{ID_MODEL}==\"$MTP_MODEL\", ENV{ID_MODEL_ID}==\"$MTP_MODEL_ID\", ACTION==\"add\", RUN+=\"/usr/bin/sudo -b -u $MTP_USER $PATH_GO -dev=$MTP_VENDOR_ID:$MTP_DEVICE_ID -allow-other=true /media/$MTP_MODEL\"" >> $MTP_RULE
   echo "ENV{ID_MODEL}==\"$MTP_MODEL\", ENV{ID_MODEL_ID}==\"$MTP_MODEL_ID\", ACTION==\"remove\", RUN+=\"/bin/umount /media/$MTP_MODEL\"" >> $MTP_RULE
   echo " " >> $MTP_RULE
 
   # UDEV - restart the service
   service udev restart
 fi
-
-EHCI_DRIVER="/sys/bus/pci/drivers/ehci_hcd/$MTP_USBID"
-OHCI_DRIVER="/sys/bus/pci/drivers/ohci_hcd/$MTP_USBID"
-XHCI_DRIVER="/sys/bus/pci/drivers/xhci_hcd/$MTP_USBID"
-
+ 
 # device detection according to new UDEV rules
 if [ "$MTP_ERROR" = "" ]
 then
   # progress indicator
   echo "80" ; echo "# Step 6 - Device detection ... if more than 10s, reconnect the device" ; sleep 1
 
-  if [ \( -e "${EHCI_DRIVER}" \) ]
-  then
-    # USB - first reset of host to force device reconnexion
-    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ehci_hcd/unbind
-    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ehci_hcd/bind   
-  elif [ \( -e "${OHCI_DRIVER}" \) ]
-  then
-    # USB - first reset of host to force device reconnexion
-    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ohci_hcd/unbind
-    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ohci_hcd/bind
-  elif [ \( -e "${XHCI_DRIVER}" \) ]
-  then
-   # USB - first reset of host to force device reconnexion
-    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/xhci_hcd/unbind
-    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/xhci_hcd/bind
-  fi
+  # USB - first reset of host to force device reconnexion
+  echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/${MTP_USBTYPE}/unbind
+  echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/${MTP_USBTYPE}/bind
 
   # GO-MTPFS - loop till the device has been detected again
   MTP_LINE=""
@@ -181,19 +174,8 @@ then
 
     # reset USB host to force device reconnection and mount it as device  
     echo "90" ; echo "# Step 9 - Second reset of USB host" ; sleep 1
-    if [ \( -e "${EHCI_DRIVER}" \) ]
-    then
-      echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ehci_hcd/unbind
-      echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ehci_hcd/bind   
-    elif [ \( -e "${OHCI_DRIVER}" \) ]
-    then
-      echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ohci_hcd/unbind
-      echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/ohci_hcd/bind
-    elif [ \( -e "${XHCI_DRIVER}" \) ]
-    then
-      echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/xhci_hcd/unbind
-      echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/xhci_hcd/bind
-    fi
+    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/${MTP_USBTYPE}/unbind
+    echo -n "$MTP_USBID" | tee /sys/bus/pci/drivers/${MTP_USBTYPE}/bind
 
     # FINISHED - declare mount point in /etc/fstab
     echo "100" ; echo "# Finished ! Your $MTP_MODEL should be seen as a device" ; sleep 1
@@ -207,3 +189,4 @@ fi
 # in case of error, display message
 if [ "$MTP_ERROR" != "" ]; then echo "100" ; echo "# Error - $MTP_ERROR" ; sleep 1 ; fi
 ) | zenity --progress --pulsate --width=500 --title "Declaration of a new MTP device"
+
